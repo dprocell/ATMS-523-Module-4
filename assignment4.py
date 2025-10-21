@@ -17,9 +17,7 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 import pandas as pd
 
-# ============================================================================
-# Detrending and Anomaly Functions (provided in assignment)
-# ============================================================================
+# Detrending and Anomaly Functions 
 
 def _time_as_float(time: xr.DataArray, time_dim: str) -> xr.DataArray:
     """Convert time to float (seconds since first timestamp)"""
@@ -71,10 +69,7 @@ def monthly_anom_and_z(
     z = anom.groupby(key) / safe_std
     return anom, z
 
-
-# ============================================================================
-# Main Analysis Class
-# ============================================================================
+# Main Analysis 
 
 class PacificSSTEOFAnalysis:
     """
@@ -130,12 +125,11 @@ class PacificSSTEOFAnalysis:
             'sst': ds_sst[sst_var],
             'tcwv': ds_tcwv[tcwv_var]
         })
+        print("Data loaded: " + str(len(self.ds[time_dim])) + " time steps")
+        print("SST shape: " + str(self.ds['sst'].shape))
+        print("TCWV shape: " + str(self.ds['tcwv'].shape))
         
-        print(f"Data loaded: {len(self.ds[time_dim])} time steps")
-        print(f"SST shape: {self.ds['sst'].shape}")
-        print(f"TCWV shape: {self.ds['tcwv'].shape}")
-        
-        # Save original data for later reconstruction
+        # Save original data for later
         self.ds_original = self.ds.copy()
         
     def process_anomalies(self):
@@ -160,7 +154,6 @@ class PacificSSTEOFAnalysis:
         self.ds_z = z
         
         # Step 3: Standardize SST anomalies
-        print("Standardizing SST anomalies...")
         sst_anom = anom['sst']
         
         # Flatten spatial dimensions for standardization
@@ -172,8 +165,8 @@ class PacificSSTEOFAnalysis:
         
         self.sst_standardized = sst_standardized
 
-        print(f"SST anomaly mean: {float(sst_anom.mean()):.6f}")
-        print(f"SST anomaly std: {float(sst_anom.std()):.6f}")
+        print("SST anomaly mean: " + format(float(sst_anom.mean()), '.6f'))
+        print("SST anomaly std: " + format(float(sst_anom.std()), '.6f'))
     
     def perform_eof_analysis(self, n_eofs=10):
         """
@@ -199,8 +192,8 @@ class PacificSSTEOFAnalysis:
         # Convert to numpy array and transpose to (n_samples, n_features)
         X = sst_valid.values.T  # Shape: (n_times, n_space)
         
-        print(f"Data matrix shape: {X.shape}")
-        print(f"Valid grid points: {X.shape[1]}")
+        print("Data matrix shape: " + str(X.shape))
+        print("Valid grid points: " + str(X.shape[1]))
         
         # PCA/ EOF analysis
         pca = PCA(n_components=n_eofs)
@@ -231,8 +224,8 @@ class PacificSSTEOFAnalysis:
         self.lat_coords = lat_coords
         self.lon_coords = lon_coords
 
-        print(f"Variance explained by first 5 EOFs: {explained_var[:5].sum():.2f}%")
-    
+        print("Variance explained by first 5 EOFs: " + format(explained_var[:5].sum(), '.2f') + "%")
+
     def plot_eof_maps(self, n_eofs=5):
         """
         Step 3: Plot maps of the first n EOFs.
@@ -348,8 +341,8 @@ class PacificSSTEOFAnalysis:
         
         sst_reconstructed_anom = self.sst_reconstructed_std * sst_std + sst_mean
         
-        # Add back the trend and climatology to get "observed" values
-        # For correlation, we'll use the anomalies
+        # Add back the trend and climatology to get observed values
+        # For correlation we use anomalies
         self.sst_reconstructed = sst_reconstructed_anom
             
     def plot_reconstruction_correlation(self):
@@ -383,7 +376,7 @@ class PacificSSTEOFAnalysis:
         
         plt.tight_layout()
         plt.savefig('sst_reconstruction_correlation.png', dpi=300, bbox_inches='tight')
-        print(f"Mean correlation: {float(correlation.mean()):.3f}")
+        print("Mean correlation: " + format(float(correlation.mean()), '.3f'))
         plt.show()
         
         self.reconstruction_corr = correlation
@@ -430,8 +423,6 @@ class PacificSSTEOFAnalysis:
         
         plt.tight_layout()
         plt.savefig('sst_eof1_tcwv_correlation.png', dpi=300, bbox_inches='tight')
-        print(" Strong positive correlations in tropical Pacific (ENSO signal)")
-        print("Atmospheric response to SST anomalies, and Teleconnections")
         plt.show()
         
         self.sst_tcwv_corr = correlation
@@ -471,15 +462,9 @@ class PacificSSTEOFAnalysis:
         
         # Step 6: Analyze SST-TCWV correlation
         self.analyze_sst_tcwv_correlation()
-        
-        print("\n" + "="*70)
-        print("ANALYSIS COMPLETE!")
-        print("="*70)
 
 
-# ============================================================================
-# Example Usage
-# ============================================================================
+# Main function
 
 if __name__ == "__main__":
     analyzer = PacificSSTEOFAnalysis()
@@ -487,16 +472,9 @@ if __name__ == "__main__":
     # YOU NEED TO DOWNLOAD THESE FROM COPERNICUS FIRST
     sst_file = "era5_sst_monthly_1979-2024.nc"
     tcwv_file = "era5_tcwv_monthly_1979-2024.nc"
-    lsm_file = "era5_land_sea_mask.nc"  # Optional
+    lsm_file = "era5_land_sea_mask.nc" 
     
     analyzer.run_complete_analysis(sst_file, tcwv_file, lsm_file)
-    
-    print("\nAll figures saved!")
-    print("- pacific_sst_eof_maps.png")
-    print("- eof_variance_explained.png")
-    print("- sst_reconstruction_correlation.png")
-    print("- sst_eof1_tcwv_correlation.png")
-
 
 """
 Data Download Instructions:

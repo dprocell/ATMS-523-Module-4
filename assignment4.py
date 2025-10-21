@@ -87,8 +87,6 @@ class PacificSSTEOFAnalysis:
             'latitude': slice(65, -65),  # 65°N to 65°S
             'longitude': slice(120, 300)  # 120°E to 60°W (300°E)
         }
-        print("Pacific Basin SST EOF Analysis initialized")
-        print("Region: 65°N to 65°S, 120°E to 60°W")
     
     def load_and_prepare_data(self, sst_file, tcwv_file, lsm_file=None):
         """
@@ -102,12 +100,8 @@ class PacificSSTEOFAnalysis:
             Path to total column water vapor NetCDF file
         lsm_file : str, optional
             Path to land-sea mask file
-        """
-        print("\nLoading data files...")
-        
-        # Load SST data
+        """        
         ds_sst = xr.open_dataset(sst_file)
-        # Load total column water vapor
         ds_tcwv = xr.open_dataset(tcwv_file)
         
         # Identify time dimension (could be 'time' or 'valid_time')
@@ -122,16 +116,13 @@ class PacificSSTEOFAnalysis:
         ds_sst = ds_sst.sel({time_dim: slice('1979-01', '2024-12')})
         ds_tcwv = ds_tcwv.sel({time_dim: slice('1979-01', '2024-12')})
         
-        # Apply land-sea mask if provided
-        if lsm_file:
-            lsm = xr.open_dataset(lsm_file)
-            lsm = lsm.sel(**self.pacific_bounds)
-            # Mask out land (typically lsm > 0.5 is land)
-            ds_sst = ds_sst.where(lsm['lsm'] < 0.5)
-            ds_tcwv = ds_tcwv.where(lsm['lsm'] < 0.5)
+        # Apply land-sea mask 
+        lsm = xr.open_dataset(lsm_file)
+        lsm = lsm.sel(**self.pacific_bounds)
+        ds_sst = ds_sst.where(lsm['lsm'] < 0.5)
+        ds_tcwv = ds_tcwv.where(lsm['lsm'] < 0.5)
         
-        # Combine into single dataset
-        # Rename variables to standard names
+        # Combine into single dataset, rename variables to standard names
         sst_var = 'sst' if 'sst' in ds_sst.data_vars else list(ds_sst.data_vars)[0]
         tcwv_var = 'tcwv' if 'tcwv' in ds_tcwv.data_vars else list(ds_tcwv.data_vars)[0]
         
@@ -150,18 +141,14 @@ class PacificSSTEOFAnalysis:
     def process_anomalies(self):
         """
         Step 2: Detrend and deseasonalize the data, then standardize SST.
-        """
-        print("\nProcessing anomalies...")
-        
+        """        
         # Chunk time dimension for efficiency
         self.ds = self.ds.chunk({self.time_dim: -1})
         
         # Step 1: Linear detrend
-        print("Detrending data...")
         detr = linear_detrend(self.ds[['sst', 'tcwv']], time_dim=self.time_dim)
         
         # Step 2: Remove monthly climatology and compute z-scores
-        print("Computing monthly anomalies...")
         anom, z = monthly_anom_and_z(
             detr, 
             time_dim=self.time_dim,
@@ -184,8 +171,7 @@ class PacificSSTEOFAnalysis:
         sst_standardized = (sst_anom - sst_mean) / sst_std
         
         self.sst_standardized = sst_standardized
-        
-        print("Anomaly processing complete!")
+
         print(f"SST anomaly mean: {float(sst_anom.mean()):.6f}")
         print(f"SST anomaly std: {float(sst_anom.std()):.6f}")
     
@@ -197,13 +183,9 @@ class PacificSSTEOFAnalysis:
         -----------
         n_eofs : int
             Number of EOFs to compute (default: 10)
-        """
-        print(f"\nPerforming EOF analysis (n_eofs={n_eofs})...")
-        
-        # Reshape data: (time, space)
+        """        
+        # Reshape data
         sst_data = self.sst_standardized
-        
-        # Get spatial coordinates
         lat_coords = sst_data.latitude.values
         lon_coords = sst_data.longitude.values
         
@@ -220,7 +202,7 @@ class PacificSSTEOFAnalysis:
         print(f"Data matrix shape: {X.shape}")
         print(f"Valid grid points: {X.shape[1]}")
         
-        # Perform PCA (EOF analysis)
+        # PCA/ EOF analysis
         pca = PCA(n_components=n_eofs)
         pca.fit(X)
         
@@ -248,8 +230,7 @@ class PacificSSTEOFAnalysis:
         self.valid_mask = valid_mask
         self.lat_coords = lat_coords
         self.lon_coords = lon_coords
-        
-        print("EOF analysis complete!")
+
         print(f"Variance explained by first 5 EOFs: {explained_var[:5].sum():.2f}%")
     
     def plot_eof_maps(self, n_eofs=5):
@@ -260,15 +241,11 @@ class PacificSSTEOFAnalysis:
         -----------
         n_eofs : int
             Number of EOFs to plot (default: 5)
-        """
-        print(f"\nPlotting first {n_eofs} EOFs...")
-        
+        """        
         fig = plt.figure(figsize=(20, 12))
         
         for i in range(n_eofs):
             ax = fig.add_subplot(3, 2, i+1, projection=ccrs.PlateCarree(central_longitude=180))
-            
-            # Set map extent
             ax.set_extent([120, 300, -65, 65], ccrs.PlateCarree())
             ax.add_feature(cfeature.COASTLINE, linewidth=0.5)
             ax.add_feature(cfeature.LAND, alpha=0.3)
@@ -276,7 +253,7 @@ class PacificSSTEOFAnalysis:
             # Plot EOF
             eof_data = self.eofs_spatial[i]
             
-            # Determine color scale
+            # Variable color scaling
             vmax = np.nanpercentile(np.abs(eof_data), 95)
             
             im = ax.contourf(
@@ -285,21 +262,14 @@ class PacificSSTEOFAnalysis:
                 cmap='RdBu_r', extend='both',
                 transform=ccrs.PlateCarree()
             )
-            
-            plt.colorbar(im, ax=ax, orientation='horizontal', pad=0.05, 
-                        label='EOF Loading', shrink=0.8)
-            
-            ax.set_title(f'EOF {i+1} ({self.explained_var[i]:.2f}% variance)', 
-                        fontsize=12, fontweight='bold')
-            
-            # Add gridlines
+            plt.colorbar(im, ax=ax, orientation='horizontal', pad=0.05, label='EOF Loading', shrink=0.8)
+            ax.set_title(f'EOF {i+1} ({self.explained_var[i]:.2f}% variance)', fontsize=12, fontweight='bold')
             gl = ax.gridlines(draw_labels=True, alpha=0.3)
             gl.top_labels = False
             gl.right_labels = False
         
         plt.tight_layout()
         plt.savefig('pacific_sst_eof_maps.png', dpi=300, bbox_inches='tight')
-        print("EOF maps saved to 'pacific_sst_eof_maps.png'")
         plt.show()
     
     def plot_variance_explained(self, n_eofs=10):
@@ -310,9 +280,7 @@ class PacificSSTEOFAnalysis:
         -----------
         n_eofs : int
             Number of EOFs to plot (default: 10)
-        """
-        print(f"\nPlotting variance explained by first {n_eofs} EOFs...")
-        
+        """        
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
         
         # Individual variance
@@ -323,7 +291,7 @@ class PacificSSTEOFAnalysis:
         ax1.set_title('Variance Explained by Each EOF', fontsize=14, fontweight='bold')
         ax1.grid(True, alpha=0.3)
         ax1.set_xticks(eof_numbers)
-        
+
         # Cumulative variance
         cumulative_var = np.cumsum(self.explained_var[:n_eofs])
         ax2.plot(eof_numbers, cumulative_var, 'o-', color='darkred', linewidth=2, markersize=8)
@@ -334,10 +302,8 @@ class PacificSSTEOFAnalysis:
         ax2.set_xticks(eof_numbers)
         ax2.axhline(y=90, color='gray', linestyle='--', alpha=0.5, label='90%')
         ax2.legend()
-        
         plt.tight_layout()
         plt.savefig('eof_variance_explained.png', dpi=300, bbox_inches='tight')
-        print("Variance plot saved to 'eof_variance_explained.png'")
         plt.show()
     
     def reconstruct_sst(self, n_eofs=5):
@@ -348,9 +314,7 @@ class PacificSSTEOFAnalysis:
         -----------
         n_eofs : int
             Number of EOFs to use for reconstruction (default: 5)
-        """
-        print(f"\nReconstructing SST using first {n_eofs} EOFs...")
-        
+        """        
         # Reconstruct using first n EOFs
         X_reconstructed = self.pcs[:, :n_eofs] @ self.eofs[:n_eofs, :]
         
@@ -387,52 +351,38 @@ class PacificSSTEOFAnalysis:
         # Add back the trend and climatology to get "observed" values
         # For correlation, we'll use the anomalies
         self.sst_reconstructed = sst_reconstructed_anom
-        
-        print("SST reconstruction complete!")
-    
+            
     def plot_reconstruction_correlation(self):
         """
         Step 5: Plot correlation between reconstructed and observed SST.
-        """
-        print("\nCalculating correlation between reconstructed and observed SST...")
-        
+        """        
         # Calculate correlation at each grid point
         observed = self.ds_anom['sst']
         reconstructed = self.sst_reconstructed
         
-        # Compute correlation using xarray
+        # Correlation computation
         correlation = xr.corr(observed, reconstructed, dim=self.time_dim)
         
         # Plot
         fig = plt.figure(figsize=(14, 8))
         ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree(central_longitude=180))
-        
         ax.set_extent([120, 300, -65, 65], ccrs.PlateCarree())
         ax.add_feature(cfeature.COASTLINE, linewidth=0.5)
         ax.add_feature(cfeature.LAND, alpha=0.3)
-        
-        # Plot correlation
         im = ax.contourf(
             self.lon_coords, self.lat_coords, correlation.values,
             levels=np.linspace(0, 1, 21),
             cmap='YlOrRd', extend='min',
             transform=ccrs.PlateCarree()
         )
-        
-        plt.colorbar(im, ax=ax, orientation='horizontal', pad=0.05,
-                    label='Pearson Correlation Coefficient', shrink=0.8)
-        
-        ax.set_title('Correlation: Reconstructed (5 EOFs) vs Observed SST Anomalies',
-                    fontsize=14, fontweight='bold')
-        
-        # Add gridlines
+        plt.colorbar(im, ax=ax, orientation='horizontal', pad=0.05, label='Pearson Correlation Coefficient', shrink=0.8)
+        ax.set_title('Correlation: Reconstructed (5 EOFs) vs Observed SST Anomalies', fontsize=14, fontweight='bold')
         gl = ax.gridlines(draw_labels=True, alpha=0.3)
         gl.top_labels = False
         gl.right_labels = False
         
         plt.tight_layout()
         plt.savefig('sst_reconstruction_correlation.png', dpi=300, bbox_inches='tight')
-        print("Correlation map saved to 'sst_reconstruction_correlation.png'")
         print(f"Mean correlation: {float(correlation.mean()):.3f}")
         plt.show()
         
@@ -441,9 +391,7 @@ class PacificSSTEOFAnalysis:
     def analyze_sst_tcwv_correlation(self):
         """
         Step 6: Compute correlation between SST EOF1 and total column water vapor.
-        """
-        print("\nAnalyzing SST EOF1 - TCWV correlation...")
-        
+        """        
         # Get PC1 time series
         pc1 = self.pcs[:, 0]
         
@@ -457,18 +405,16 @@ class PacificSSTEOFAnalysis:
         # Get detrended, deseasonalized, standardized TCWV
         tcwv_anom = self.ds_z['tcwv']
         
-        # Compute correlation at each grid point
+        # Correlation computation
         correlation = xr.corr(pc1_da, tcwv_anom, dim=self.time_dim)
         
-        # Plot
         fig = plt.figure(figsize=(14, 8))
         ax = fig.add_subplot(1, 1, 1, projection=ccrs.PlateCarree(central_longitude=180))
-        
         ax.set_extent([120, 300, -65, 65], ccrs.PlateCarree())
         ax.add_feature(cfeature.COASTLINE, linewidth=0.5)
         ax.add_feature(cfeature.LAND, alpha=0.2)
         
-        # Plot correlation (don't mask over land for this plot)
+        # Plot correlation (don't mask over land)
         vmax = 0.8
         im = ax.contourf(
             self.lon_coords, self.lat_coords, correlation.values,
@@ -476,25 +422,16 @@ class PacificSSTEOFAnalysis:
             cmap='RdBu_r', extend='both',
             transform=ccrs.PlateCarree()
         )
-        
-        plt.colorbar(im, ax=ax, orientation='horizontal', pad=0.05,
-                    label='Pearson Correlation Coefficient', shrink=0.8)
-        
-        ax.set_title(f'Correlation: SST EOF1 ({self.explained_var[0]:.2f}% var) vs Total Column Water Vapor',
-                    fontsize=14, fontweight='bold')
-        
-        # Add gridlines
+        plt.colorbar(im, ax=ax, orientation='horizontal', pad=0.05,label='Pearson Correlation Coefficient', shrink=0.8)
+        ax.set_title(f'Correlation: SST EOF1 ({self.explained_var[0]:.2f}% var) vs Total Column Water Vapor', fontsize=14, fontweight='bold')
         gl = ax.gridlines(draw_labels=True, alpha=0.3)
         gl.top_labels = False
         gl.right_labels = False
         
         plt.tight_layout()
         plt.savefig('sst_eof1_tcwv_correlation.png', dpi=300, bbox_inches='tight')
-        print("SST EOF1 - TCWV correlation map saved to 'sst_eof1_tcwv_correlation.png'")
-        print(f"\nInteresting patterns to look for:")
-        print("- Strong positive correlations in tropical Pacific (ENSO signal)")
-        print("- Atmospheric response to SST anomalies")
-        print("- Teleconnection patterns")
+        print(" Strong positive correlations in tropical Pacific (ENSO signal)")
+        print("Atmospheric response to SST anomalies, and Teleconnections")
         plt.show()
         
         self.sst_tcwv_corr = correlation
@@ -512,9 +449,6 @@ class PacificSSTEOFAnalysis:
         lsm_file : str, optional
             Path to land-sea mask file
         """
-        print("="*70)
-        print("PACIFIC BASIN SST EOF ANALYSIS")
-        print("="*70)
         
         # Step 1: Load and prepare data
         self.load_and_prepare_data(sst_file, tcwv_file, lsm_file)
@@ -548,16 +482,13 @@ class PacificSSTEOFAnalysis:
 # ============================================================================
 
 if __name__ == "__main__":
-    # Initialize analysis
     analyzer = PacificSSTEOFAnalysis()
     
-    # Define file paths
     # YOU NEED TO DOWNLOAD THESE FROM COPERNICUS FIRST
     sst_file = "era5_sst_monthly_1979-2024.nc"
     tcwv_file = "era5_tcwv_monthly_1979-2024.nc"
     lsm_file = "era5_land_sea_mask.nc"  # Optional
     
-    # Run complete analysis
     analyzer.run_complete_analysis(sst_file, tcwv_file, lsm_file)
     
     print("\nAll figures saved!")

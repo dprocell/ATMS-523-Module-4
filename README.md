@@ -15,14 +15,14 @@
 
 - Mask ocean-only points using land-sea mask
 - Stack 2D spatial grid into 1D array
-- Perform SVD to extract EOFs (spatial patterns) and PCs (time series)
+- Perform SVD (single value decomposition) to extract EOFs (spatial patterns) and PCs (time series)
+- SVD: X = U × S × V^T
 - Calculate variance explained by each EOF
 - Plot first 5 EOF spatial patterns
 
 4. Variance Explained
 
 - Plot bar chart showing variance explained by first 10 EOFs
-- Add cumulative variance line
 
 5. Reconstruct SST
 

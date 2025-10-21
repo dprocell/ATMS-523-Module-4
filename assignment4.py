@@ -1,3 +1,12 @@
+"""
+ATMS 523 Weather and Climate Data Analytics
+Project 4
+
+Author: Dara Procell
+Date: October 21, 2025
+Description: Era5 EOF analysis for SST and TCWV with land-sea masking
+"""
+
 import numpy as np
 import xarray as xr
 import matplotlib.pyplot as plt
